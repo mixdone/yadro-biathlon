@@ -20,7 +20,7 @@ type Event struct {
 func parseLine(line string) (Event, error) {
 	parts := strings.SplitN(line, "]", 2)
 	timeStr := strings.TrimPrefix(parts[0], "[")
-	eventTime, err := time.Parse("09:31:49.285", timeStr)
+	eventTime, err := time.Parse("15:04:05.000", timeStr)
 	if err != nil {
 		return Event{}, fmt.Errorf("Unable to parse time, %s", err)
 	}
@@ -29,12 +29,16 @@ func parseLine(line string) (Event, error) {
 	fields := strings.SplitN(part1, " ", 3)
 	eventId, _ := strconv.Atoi(fields[0])
 	competitorId, _ := strconv.Atoi(fields[1])
+	extra := ""
+	if len(fields) == 3 {
+		extra = fields[2]
+	}
 
 	return Event{
 		Time:         eventTime,
 		EventID:      eventId,
 		CompetitorID: competitorId,
-		Extra:        fields[2],
+		Extra:        extra,
 		RawLine:      line}, nil
 }
 
