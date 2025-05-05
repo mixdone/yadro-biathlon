@@ -21,6 +21,7 @@ func main() {
 	}
 
 	processor := processor.NewProcessor(cfg)
+	defer processor.FlushLog()
 
 	for _, e := range events {
 		processor.ProcessEvent(e)

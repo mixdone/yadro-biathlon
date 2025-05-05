@@ -51,7 +51,8 @@ func (p *Processor) ProcessEvent(e config.Event) {
 		t, _ := time.Parse("15:04:05.000", e.Extra)
 		c.PlannedStart = t
 		c.StartSet = true
-		p.logEvent(e.Time, fmt.Sprintf("The start time for the competitor(%d) was set by a draw to %s", c.ID, e.Extra[0]))
+		p.logEvent(e.Time, fmt.Sprintf("The start time for the competitor(%d) was set by a draw to %v",
+			c.ID, c.PlannedStart.Format("15:04:05.000")))
 
 	case 3:
 		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) is on the start line", c.ID))
