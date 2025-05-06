@@ -3,7 +3,9 @@ The prototype must be able to work with a configuration file and a set of extern
 Solution should contain golang (1.20 or newer) source file/files and unit tests (optional)
 
 ## Using
+```
 go run main.go log.txt resul.txt  
+```
 
 ## Configuration (json)
 
