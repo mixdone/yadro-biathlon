@@ -2,6 +2,9 @@
 The prototype must be able to work with a configuration file and a set of external events of a certain format.
 Solution should contain golang (1.20 or newer) source file/files and unit tests (optional)
 
+## Using
+go run main.go log.txt resul.txt  
+
 ## Configuration (json)
 
 - **Laps**        - Amount of laps for main distance
@@ -110,3 +113,7 @@ Examples:
 `Resulting table`
 ```
 [NotFinished] 1 [{00:29:03.872, 2.093}, {,}] {00:01:44.296, 0.481} 4/5
+```
+
+
+
