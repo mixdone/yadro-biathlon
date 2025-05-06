@@ -3,26 +3,30 @@ package models
 import "time"
 
 type Competitor struct {
-	ID            int
-	Registered    bool
-	PlannedStart  time.Time
-	ActualStart   time.Time
-	StartSet      bool
-	Started       bool
-	Finished      bool
-	NotStarted    bool
-	NotFinished   bool
-	LapTimes      []time.Duration
-	PenaltyTime   time.Duration
-	ShotsFired    int
-	Hits          int
+	ID   int
+	Hits int
+
+	PlannedStart time.Time
+	ActualStart  time.Time
+
 	LapStartTimes []time.Time
+	LapTimes      []time.Duration
+
+	PenaltyLapStartTimes []time.Time
+	PenaltyTime          time.Duration
+
+	Registered  bool
+	StartSet    bool
+	Started     bool
+	Finished    bool
+	NotStarted  bool
+	NotFinished bool
 }
 
 func (c *Competitor) LapTimesSum() time.Duration {
-	total := time.Duration(0)
+	var total time.Duration
 	for _, lap := range c.LapTimes {
 		total += lap
 	}
-	return total + c.PenaltyTime
+	return total
 }

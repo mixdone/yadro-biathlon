@@ -3,7 +3,8 @@ package processor
 import (
 	"bufio"
 	"fmt"
-	"os"
+	"io"
+	"sort"
 	"time"
 
 	"github.com/mixdone/yadro-biathlon/config"
@@ -17,12 +18,12 @@ type Processor struct {
 	resultWriter *bufio.Writer
 }
 
-func NewProcessor(cfg *config.Config) *Processor {
+func NewProcessor(cfg *config.Config, log io.Writer, result io.Writer) *Processor {
 	return &Processor{
 		config:       cfg,
 		competitors:  make(map[int]*models.Competitor),
-		logWriter:    bufio.NewWriter(os.Stdout),
-		resultWriter: bufio.NewWriter(os.Stdout),
+		logWriter:    bufio.NewWriter(log),
+		resultWriter: bufio.NewWriter(result),
 	}
 }
 
@@ -70,12 +71,13 @@ func (p *Processor) ProcessEvent(e config.Event) {
 		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) has started", c.ID))
 
 	case 5:
-		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) is on the firing range(%s)", c.ID, e.Extra))
+		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) is on the firing range(%s)",
+			c.ID, e.Extra))
 
 	case 6:
-		c.ShotsFired++
 		c.Hits++
-		p.logEvent(e.Time, fmt.Sprintf("The target(%s) has been hit by competitor(%d)", e.Extra, c.ID))
+		p.logEvent(e.Time, fmt.Sprintf("The target(%s) has been hit by competitor(%d)",
+			e.Extra, c.ID))
 
 	case 7:
 		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) left the firing range", c.ID))
@@ -90,18 +92,36 @@ func (p *Processor) ProcessEvent(e config.Event) {
 		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) left the penalty laps", c.ID))
 
 	case 10:
-		lastLapStart := c.LapStartTimes[len(c.LapStartTimes)-1]
-		c.LapTimes = append(c.LapTimes, e.Time.Sub(lastLapStart))
+		mainLapDuration := e.Time.Sub(c.PlannedStart)
+		c.LapTimes = append(c.LapTimes, mainLapDuration)
 		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) ended the main lap", c.ID))
 
 	case 11:
 		c.NotFinished = true
-		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) can`t continue: %s", c.ID, e.Extra))
+		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) can`t continue: %s",
+			c.ID, e.Extra))
 	}
 }
 
 func (p *Processor) PrintFinalReport() {
+	shotsFired := 5 * p.config.FiringLines
+
+	var competitorsWithTime []models.CompetitorWithTime
 	for _, c := range p.competitors {
+		var totalTime time.Duration
+		if !c.NotFinished {
+			totalTime = c.LapTimesSum()
+		}
+		competitorsWithTime = append(competitorsWithTime, models.CompetitorWithTime{
+			Competitor: c,
+			TotalTime:  totalTime,
+		})
+	}
+
+	sort.Sort(models.ByTotalTime(competitorsWithTime))
+
+	for _, cwt := range competitorsWithTime {
+		c := cwt.Competitor
 		if !c.Started && c.StartSet {
 			fmt.Fprintf(p.resultWriter, "[NotStarted] %d\n", c.ID)
 			continue
@@ -112,18 +132,25 @@ func (p *Processor) PrintFinalReport() {
 			totalTime := c.LapTimesSum()
 			fmt.Fprintf(p.resultWriter, "[%s] %d ", formatDuration(totalTime), c.ID)
 		}
+
 		fmt.Fprintf(p.resultWriter, "[")
-		for i, lap := range c.LapTimes {
+		for i := 0; i < p.config.Laps; i++ {
 			if i > 0 {
 				fmt.Fprintf(p.resultWriter, ", ")
 			}
-			speed := float64(p.config.LapLen) / lap.Seconds()
-			fmt.Fprintf(p.resultWriter, "{%s, %.3f}", formatDuration(lap), speed)
+
+			if i < len(c.LapTimes) {
+				lap := c.LapTimes[i]
+				speed := float64(p.config.LapLen) / float64(lap.Seconds())
+				fmt.Fprintf(p.resultWriter, "{%s, %.3f}", formatDuration(lap), speed)
+			} else {
+				fmt.Fprintf(p.resultWriter, "{,}")
+			}
 		}
 		fmt.Fprintf(p.resultWriter, "] ")
 
-		if c.PenaltyTime > 0 {
-			penaltyLaps := c.ShotsFired - c.Hits
+		if c.PenaltyTime >= 0 {
+			penaltyLaps := shotsFired - c.Hits
 			if penaltyLaps > 0 {
 				speed := float64(p.config.PenaltyLen*penaltyLaps) / c.PenaltyTime.Seconds()
 				fmt.Fprintf(p.resultWriter, "{%s, %.3f} ", formatDuration(c.PenaltyTime), speed)
@@ -133,7 +160,8 @@ func (p *Processor) PrintFinalReport() {
 		} else {
 			fmt.Fprintf(p.resultWriter, "{,} ")
 		}
-		fmt.Fprintf(p.resultWriter, "%d/%d\n", c.Hits, c.ShotsFired)
+
+		fmt.Fprintf(p.resultWriter, "%d/%d\n", c.Hits, shotsFired)
 	}
 }
 
