@@ -20,11 +20,15 @@ func main() {
 		return
 	}
 
-	processor := processor.NewProcessor(cfg)
-	defer processor.FlushLog()
+	proc := processor.NewProcessor(cfg)
+	defer func() {
+		proc.FlushLog()
+		proc.FlushReport()
+	}()
 
 	for _, e := range events {
-		processor.ProcessEvent(e)
+		proc.ProcessEvent(e)
 	}
 
+	proc.PrintFinalReport()
 }

@@ -18,3 +18,11 @@ type Competitor struct {
 	Hits          int
 	LapStartTimes []time.Time
 }
+
+func (c *Competitor) LapTimesSum() time.Duration {
+	total := time.Duration(0)
+	for _, lap := range c.LapTimes {
+		total += lap
+	}
+	return total + c.PenaltyTime
+}

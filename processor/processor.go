@@ -11,16 +11,18 @@ import (
 )
 
 type Processor struct {
-	config      *config.Config
-	competitors map[int]*models.Competitor
-	logWriter   *bufio.Writer
+	config       *config.Config
+	competitors  map[int]*models.Competitor
+	logWriter    *bufio.Writer
+	resultWriter *bufio.Writer
 }
 
 func NewProcessor(cfg *config.Config) *Processor {
 	return &Processor{
-		config:      cfg,
-		competitors: make(map[int]*models.Competitor),
-		logWriter:   bufio.NewWriter(os.Stdout),
+		config:       cfg,
+		competitors:  make(map[int]*models.Competitor),
+		logWriter:    bufio.NewWriter(os.Stdout),
+		resultWriter: bufio.NewWriter(os.Stdout),
 	}
 }
 
@@ -30,6 +32,10 @@ func (p *Processor) logEvent(t time.Time, msg string) {
 
 func (p *Processor) FlushLog() {
 	p.logWriter.Flush()
+}
+
+func (p *Processor) FlushReport() {
+	p.resultWriter.Flush()
 }
 
 func (p *Processor) getOrCreateComp(id int) *models.Competitor {
@@ -92,4 +98,49 @@ func (p *Processor) ProcessEvent(e config.Event) {
 		c.NotFinished = true
 		p.logEvent(e.Time, fmt.Sprintf("The competitor(%d) can`t continue: %s", c.ID, e.Extra))
 	}
+}
+
+func (p *Processor) PrintFinalReport() {
+	for _, c := range p.competitors {
+		if !c.Started && c.StartSet {
+			fmt.Fprintf(p.resultWriter, "[NotStarted] %d\n", c.ID)
+			continue
+		}
+		if c.NotFinished {
+			fmt.Fprintf(p.resultWriter, "[NotFinished] %d ", c.ID)
+		} else {
+			totalTime := c.LapTimesSum()
+			fmt.Fprintf(p.resultWriter, "[%s] %d ", formatDuration(totalTime), c.ID)
+		}
+		fmt.Fprintf(p.resultWriter, "[")
+		for i, lap := range c.LapTimes {
+			if i > 0 {
+				fmt.Fprintf(p.resultWriter, ", ")
+			}
+			speed := float64(p.config.LapLen) / lap.Seconds()
+			fmt.Fprintf(p.resultWriter, "{%s, %.3f}", formatDuration(lap), speed)
+		}
+		fmt.Fprintf(p.resultWriter, "] ")
+
+		if c.PenaltyTime > 0 {
+			penaltyLaps := c.ShotsFired - c.Hits
+			if penaltyLaps > 0 {
+				speed := float64(p.config.PenaltyLen*penaltyLaps) / c.PenaltyTime.Seconds()
+				fmt.Fprintf(p.resultWriter, "{%s, %.3f} ", formatDuration(c.PenaltyTime), speed)
+			} else {
+				fmt.Fprintf(p.resultWriter, "{00:00:00.000, 0.000} ")
+			}
+		} else {
+			fmt.Fprintf(p.resultWriter, "{,} ")
+		}
+		fmt.Fprintf(p.resultWriter, "%d/%d\n", c.Hits, c.ShotsFired)
+	}
+}
+
+func formatDuration(d time.Duration) string {
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	s := int(d.Seconds()) % 60
+	ms := int(d.Milliseconds()) % 1000
+	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
 }
